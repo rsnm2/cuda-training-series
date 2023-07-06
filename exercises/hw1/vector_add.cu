@@ -18,10 +18,10 @@ const int DSIZE = 4096;
 const int block_size = 256;  // CUDA maximum is 1024
 // vector add kernel: C = A + B
 __global__ void vadd(const float *A, const float *B, float *C, int ds){
-
-  int idx = FIXME // create typical 1D thread index from built-in variables
-  if (idx < ds)
-    FIXME         // do the vector (element) add here
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < ds) {
+    C[idx] = A[idx] + B[idx];
+  }
 }
 
 int main(){
@@ -35,25 +35,38 @@ int main(){
     h_B[i] = rand()/(float)RAND_MAX;
     h_C[i] = 0;}
   cudaMalloc(&d_A, DSIZE*sizeof(float));  // allocate device space for vector A
-  FIXME // allocate device space for vector B
-  FIXME // allocate device space for vector C
+  cudaMalloc(&d_B, DSIZE*sizeof(float));
+  cudaMalloc(&d_C, DSIZE*sizeof(float));
   cudaCheckErrors("cudaMalloc failure"); // error checking
+
   // copy vector A to device:
   cudaMemcpy(d_A, h_A, DSIZE*sizeof(float), cudaMemcpyHostToDevice);
-  // copy vector B to device:
-  FIXME
+  cudaMemcpy(d_B, h_B, DSIZE*sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_C, h_C, DSIZE*sizeof(float), cudaMemcpyHostToDevice);
   cudaCheckErrors("cudaMemcpy H2D failure");
-  //cuda processing sequence step 1 is complete
+
   vadd<<<(DSIZE+block_size-1)/block_size, block_size>>>(d_A, d_B, d_C, DSIZE);
   cudaCheckErrors("kernel launch failure");
-  //cuda processing sequence step 2 is complete
+  
   // copy vector C from device to host:
-  FIXME
-  //cuda processing sequence step 3 is complete
+  cudaMemcpy(h_C, d_C, DSIZE*sizeof(float), cudaMemcpyDeviceToHost);
   cudaCheckErrors("kernel execution failure or cudaMemcpy H2D failure");
+  
   printf("A[0] = %f\n", h_A[0]);
   printf("B[0] = %f\n", h_B[0]);
   printf("C[0] = %f\n", h_C[0]);
+  printf("Naive = %f\n", h_A[0] + h_B[0]);
+  printf("\n");
+
+  int idx = 4000;
+  printf("A[%u] = %f\n", idx, h_A[idx]);
+  printf("B[%u] = %f\n", idx, h_B[idx]);
+  printf("C[%u] = %f\n", idx, h_C[idx]);
+  printf("Naive = %f\n", h_A[idx] + h_B[idx]);
+
+
+  free(h_A); free(h_B); free(h_C);
+  cudaFree(d_A); cudaFree(d_B); cudaFree(d_C);
   return 0;
 }
   
