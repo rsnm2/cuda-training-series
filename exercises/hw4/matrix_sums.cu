@@ -14,27 +14,27 @@
     } while (0)
 
 const size_t DSIZE = 16384;      // matrix side dimension
-const int block_size = 256;  // CUDA maximum is 1024
+const int block_size = 256;      // CUDA maximum is 1024
 
 // matrix row-sum kernel
 __global__ void row_sums(const float *A, float *sums, size_t ds){
 
-  int idx = FIXME // create typical 1D thread index from built-in variables
+  int idx = threadIdx.x + blockIdx.x * blockDim.x; // create typical 1D thread index from built-in variables
   if (idx < ds){
     float sum = 0.0f;
     for (size_t i = 0; i < ds; i++)
-      sum += A[FIXME]         // write a for loop that will cause the thread to iterate across a row, keeeping a running sum, and write the result to sums
+      sum += A[idx * ds + i];         // write a for loop that will cause the thread to iterate across a row, keeping a running sum, and write the result to sums
     sums[idx] = sum;
 }}
 
 // matrix column-sum kernel
 __global__ void column_sums(const float *A, float *sums, size_t ds){
 
-  int idx = FIXME // create typical 1D thread index from built-in variables
+  int idx = threadIdx.x + blockIdx.x * blockDim.x; // create typical 1D thread index from built-in variables
   if (idx < ds){
     float sum = 0.0f;
     for (size_t i = 0; i < ds; i++)
-      sum += A[FIXME]         // write a for loop that will cause the thread to iterate down a column, keeeping a running sum, and write the result to sums
+      sum += A[i * ds + idx];         // write a for loop that will cause the thread to iterate down a column, keeeping a running sum, and write the result to sums
     sums[idx] = sum;
 }}
 
@@ -53,9 +53,9 @@ int main(){
   for (int i = 0; i < DSIZE*DSIZE; i++)  // initialize matrix in host memory
     h_A[i] = 1.0f;
     
-  cudaMalloc(&d_A, DSIZE*DSIZE*sizeof(float));  // allocate device space for A
-  FIXME // allocate device space for vector d_sums
-  cudaCheckErrors("cudaMalloc failure"); // error checking
+  cudaMalloc(&d_A, DSIZE*DSIZE*sizeof(float));    // allocate device space for A
+  cudaMalloc(&d_sums, DSIZE*sizeof(float));        // allocate device space for vector d_sums
+  cudaCheckErrors("cudaMalloc failure");          // error checking
     
   // copy matrix A to device:
   cudaMemcpy(d_A, h_A, DSIZE*DSIZE*sizeof(float), cudaMemcpyHostToDevice);

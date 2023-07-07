@@ -52,8 +52,8 @@ int main(){
     h_A[i] = 1.0f;
     
   cudaMalloc(&d_A, DSIZE*DSIZE*sizeof(float));  // allocate device space for A
-  cudaMalloc(&d_sums, DSIZE*sizeof(float));  // allocate device space for vector d_sums
-  cudaCheckErrors("cudaMalloc failure"); // error checking
+  cudaMalloc(&d_sums, DSIZE*sizeof(float));     // allocate device space for vector d_sums
+  cudaCheckErrors("cudaMalloc failure");        // error checking
     
   // copy matrix A to device:
   cudaMemcpy(d_A, h_A, DSIZE*DSIZE*sizeof(float), cudaMemcpyHostToDevice);
