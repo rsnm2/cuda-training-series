@@ -14,7 +14,7 @@
     } while (0)
 
 
-const size_t DSIZE = 16384;      // matrix side dimension
+const size_t DSIZE = 16384;  // matrix side dimension
 const int block_size = 256;  // CUDA maximum is 1024
 
 // matrix row-sum kernel
