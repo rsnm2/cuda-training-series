@@ -18,23 +18,26 @@ const size_t N = 8ULL*1024ULL*1024ULL;  // data size
 const int BLOCK_SIZE = 256;  // CUDA maximum is 1024
 
 __global__ void reduce(float *gdata, float *out, size_t n){
-     __shared__ float sdata[BLOCK_SIZE];
-     int tid = threadIdx.x;
-     sdata[tid] = 0.0f;
-     size_t idx = threadIdx.x+blockDim.x*blockIdx.x;
-
-     while (idx < n) {  // grid stride loop to load data
-        sdata[tid] += gdata[idx];
-        idx += gridDim.x*blockDim.x;  
-        }
-
-     for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
-        __syncthreads();
-        if (tid < s)  // parallel sweep reduction
-            sdata[tid] += sdata[tid + s];
-        }
-     if (tid == 0) out[blockIdx.x] = sdata[0];
+  __shared__ float sdata[BLOCK_SIZE];
+  int tid = threadIdx.x;
+  sdata[tid] = 0.0f;
+  size_t idx = threadIdx.x+blockDim.x*blockIdx.x;
+  
+  // successive passes, do compare for max element
+  // grid stride loop to load data
+  while (idx < n) {
+    sdata[tid] = max(sdata[tid], gdata[tid]);
+    idx += gridDim.x * blockDim.x;  
   }
+
+  for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+    __syncthreads();
+    // successively save to the left with parallel sweep reduction
+    if (tid < s) 
+      sdata[tid] = max(sdata[tid], sdata[tid + s]);
+  }
+  if (tid == 0) out[blockIdx.x] = sdata[0];
+}
 
 int main(){
 
