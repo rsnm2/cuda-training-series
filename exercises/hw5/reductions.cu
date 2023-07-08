@@ -63,17 +63,17 @@ __global__ void reduce(float *gdata, float *out){
 
 
 __global__ void reduce_ws(float *gdata, float *out){
-     __shared__ float sdata[32];
-     int tid = threadIdx.x;
-     int idx = threadIdx.x+blockDim.x*blockIdx.x;
-     float val = 0.0f;
-     unsigned mask = 0xFFFFFFFFU;
-     int lane = threadIdx.x % warpSize;
-     int warpID = threadIdx.x / warpSize;
-     while (idx < N) {  // grid stride loop to load 
-        val += gdata[idx];
-        idx += gridDim.x*blockDim.x;  
-        }
+   __shared__ float sdata[32];
+   int tid = threadIdx.x;
+   int idx = threadIdx.x+blockDim.x*blockIdx.x;
+   float val = 0.0f;
+   unsigned mask = 0xFFFFFFFFU;
+   int lane = threadIdx.x % warpSize;
+   int warpID = threadIdx.x / warpSize;
+   while (idx < N) {  // grid stride loop to load 
+      val += gdata[idx];
+      idx += gridDim.x*blockDim.x;  
+   }
 
  // 1st warp-shuffle reduction
     for (int offset = warpSize/2; offset > 0; offset >>= 1) 

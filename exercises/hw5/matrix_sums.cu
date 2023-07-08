@@ -17,45 +17,42 @@
 const size_t DSIZE = 16384;      // matrix side dimension
 const int block_size = 256;      // CUDA maximum is 1024
 // matrix row-sum kernel
-__global__ void row_sums(const float *A, float *sums, size_t ds){
-  
-  if (blockIdx.x != 0){
-    printf("blockIdx.x = %u\n", blockIdx.x);
-  }
-    
+__global__ void row_sums(const float *A, float *sums, size_t ds){  
   int idx = threadIdx.x;                            // blockIdx.x == 0
   int idy = threadIdx.y + blockDim.y * blockIdx.y;  // operate on idy row
+  __shared__ float warp_sums[32]; // maximum of 32 warps
+  unsigned mask = 0xFFFFFFFFU;
+  int lane = threadIdx.x % warpSize;
+  int warpID = threadIdx.x / warpSize;
 
-  // load data to shared memory, summing as we go with grid stride loop
-  __shared__ float sdata[block_size];
-  sdata[idx] = 0.0f;
+  // grid stride loop to load data, summing as we go
+  float val = 0.0f;
   size_t grid_stride_idx = idx;
   while (grid_stride_idx < ds) {
-    sdata[idx] += A[idy * ds + grid_stride_idx];
-    grid_stride_idx += gridDim.x * blockDim.x;
+    val += A[idy * ds + grid_stride_idx];
+    grid_stride_idx += gridDim.x * blockDim.x;  
   }
+  
+  // 1st warp-shuffle reduction
+  for (int offset = warpSize/2; offset > 0; offset >>= 1) {
+    val += __shfl_down_sync(mask, val, offset);
+  }
+  if (lane == 0) warp_sums[warpID] = val;
+  __syncthreads(); // put warp results in shared mem
 
-  // parallel sweep reduction
-  for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
-    __syncthreads();
-    if (idx < s) {
-      sdata[idx] += sdata[idx + s];
+  // 2n warp-shuffle reduction
+  if (warpID == 0) {
+    val = (idx < blockDim.x / warpSize) ? warp_sums[idx] : 0;
+    for (int offset = warpSize/2; offset > 0; offset >>= 1) {
+      val += __shfl_down_sync(mask, val, offset);
     }
-    
   }
 
   // save final result
   if (idx == 0 && idy < ds) {
-    sums[idy] = sdata[0];
+    sums[idy] = val;
   }
 
-  // int idx = threadIdx.x+blockDim.x*blockIdx.x; // create typical 1D thread index from built-in variables
-  // if (idx < ds){
-  //   float sum = 0.0f;
-  //   for (size_t i = 0; i < ds; i++)
-  //     sum += A[idx*ds+i];         // write a for loop that will cause the thread to iterate across a row, keeeping a running sum, and write the result to sums
-  //   sums[idx] = sum;
-  // }
 }
 // matrix column-sum kernel
 __global__ void column_sums(const float *A, float *sums, size_t ds){
