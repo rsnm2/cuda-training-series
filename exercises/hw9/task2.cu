@@ -6,7 +6,7 @@
 #include <cooperative_groups.h>
 
 typedef int mytype;
-const int test_dsize = 256;
+const int test_dsize = 1048576*16;
 
 const int nTPB = 256;
 
@@ -28,19 +28,22 @@ __global__ void my_remove_if(const T * __restrict__ idata, const T remove_val, T
   unsigned tidx = g.thread_rank();
   unsigned gidx = tidx + nTPB*g.group_index().x;
   unsigned gridSize = g.size()*gridDim.x;
+  
   // first use grid-stride loop to have each block do a prefix sum over data set
-  for (unsigned i = gidx; i < dsize; i+=gridSize){
+  for (unsigned i = gidx; i < dsize; i+=gridSize) {
     unsigned temp = predicate_test(idata[i], remove_val);
     sidxs[tidx] = temp;
-    for (int j = 1; j < g.size(); j<<=1){
-      FIXME
+    for (int j = 1; j < g.size(); j<<=1) {
+      g.sync();
       if (j <= tidx){ temp +=  sidxs[tidx-j];}
-      FIXME
-      if (j <= tidx){ sidxs[tidx] = temp;}}
+      g.sync();
+      if (j <= tidx){ sidxs[tidx] = temp;}
+    }
     idxs[i] = temp;
-    FIXME}
+    g.sync();
+  }
   // grid-wide barrier
-  FIXME
+  gg.sync();
   // then compute final index, and move input data to output location
   unsigned stride = 0;
   for (unsigned i = gidx; i < dsize; i+=gridSize){
@@ -83,7 +86,7 @@ int main(){
   void *args[] = {(void *)&d_idata, (void *)&remove_val, (void *)&d_odata, (void *)&d_idxs, (void *)&ds};
   dim3 grid(numBlkPerSM*numSM);
   dim3 block(nTPB);
-  cudaLaunchCooperativeKernel((void *)my_remove_if<mytype>, FIXME);
+  cudaLaunchCooperativeKernel((void *)my_remove_if<mytype>, grid, block, args);
   err = cudaMemcpy(h_data, d_odata, tsize, cudaMemcpyDeviceToHost);
   if (err != cudaSuccess) {printf("cuda error: %s\n", cudaGetErrorString(err)); return 0;}
   //validate
@@ -99,7 +102,7 @@ int main(){
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start);
-  cudaLaunchCooperativeKernel((void *)my_remove_if<mytype>, FIXME);
+  cudaLaunchCooperativeKernel((void *)my_remove_if<mytype>, grid, block, args);
   cudaEventRecord(stop);
   float et;
   cudaMemcpy(h_data, d_odata, tsize, cudaMemcpyDeviceToHost);
